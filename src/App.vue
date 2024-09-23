@@ -1,7 +1,7 @@
 <template>
     <div class="maze">
         <div class="maze-box">
-            <div class="maze-container" :style="{ gridTemplateColumns: 'repeat(' + rows + ', 10px)' }">
+            <div class="maze-container" :style="{ gridTemplateColumns: `repeat(${rows}, 10px)` }">
                 <div v-for="(cell, index) in maze" :key="index" :style="xyRadius(cell.x, cell.y)" :class="getCellClass(cell)">
                     <span v-if="player.x === cell.x && player.y === cell.y && !hasReachedEnd" v-html="mazeSetUp.player" />
                     <span v-if="end.x === cell.x && end.y === cell.y && !hasReachedEnd" v-html="mazeSetUp.end" />
@@ -91,7 +91,6 @@
                     // 终点位置
                     endLocation: 'center'
                 },
-                errorMessage: '',
                 // 是否已经到终点
                 hasReachedEnd: false
             };
@@ -99,32 +98,34 @@
         computed: {
             // 迷宫的终点坐标
             end () {
-                const { rows, endLocation } = this.mazeSetUp;
+                const rows = this.rows;
+                const { endLocation } = this.mazeSetUp;
                 const center = Math.floor(rows / 2);
-                const end = [
-                    { x: 1, y: rows - 2 },
-                    { x: rows - 2, y: 1 },
-                    { x: center, y: center },
-                    { x: rows - 2, y: rows - 2 }
-                ];
-                switch (endLocation) {
-                    // 右上角
-                    case 'rightTop':
-                        return end[1];
-                    // 左下角
-                    case 'leftDown':
-                        return end[0];
-                    // 右下角
-                    case 'rightDown':
-                        return end[3];
-                    // 中间
-                    case 'center':
-                        return end[2];
-                    // 随机
-                    case 'random':
-                        return end[Math.floor(Math.random() * end.length)];
-                    default:
-                        return;
+                const endPoints = {
+                    center: { x: center, y: center },
+                    random: null,
+                    leftDown: { x: 1, y: rows - 2 },
+                    rightTop: { x: rows - 2, y: 1 },
+                    rightDown: { x: rows - 2, y: rows - 2 }
+                };
+                // 随机点的逻辑
+                if (endLocation === 'random') {
+                    const randomEnd = [
+                        endPoints.leftDown,
+                        endPoints.rightTop,
+                        endPoints.center,
+                        endPoints.rightDown
+                    ];
+                    endPoints.random = randomEnd[Math.floor(Math.random() * randomEnd.length)];
+                }
+                // 获取终点位置
+                const targetEnd = endPoints[endLocation];
+                if (targetEnd) {
+                    const targetCell = this.maze.find(c => c.x === targetEnd.x && c.y === targetEnd.y);
+                    if (targetCell) {
+                        targetCell.wall = false;
+                        return targetEnd;
+                    }
                 }
             }
         },
@@ -146,12 +147,14 @@
             generateMaze () {
                 // 关闭弹窗
                 this.show = false;
+                // 修改迷宫大小
+                this.rows = this.mazeSetUp.rows;
                 // 初始化迷宫，1表示墙，0表示路径
-                this.maze = Array(this.mazeSetUp.rows * this.mazeSetUp.rows).fill().map((_, i) => ({
+                this.maze = Array(this.rows * this.rows).fill().map((_, i) => ({
                     // 计算x坐标
-                    x: i % this.mazeSetUp.rows,
+                    x: i % this.rows,
                     // 计算y坐标
-                    y: Math.floor(i / this.mazeSetUp.rows),
+                    y: Math.floor(i / this.rows),
                     // 默认每个坐标都是墙
                     wall: true
                 }));
@@ -178,7 +181,7 @@
                     // 计算新的y坐标
                     const ny = y + dir.y;
                     // 检查新位置是否在迷宫范围内且是墙
-                    if (nx > 0 && nx < this.mazeSetUp.rows - 1 && ny > 0 && ny < this.mazeSetUp.rows - 1) {
+                    if (nx > 0 && nx < this.rows - 1 && ny > 0 && ny < this.rows - 1) {
                         const neighbor = this.maze.find(c => c.x === nx && c.y === ny);
                         // 只有当相邻是墙时才进行处理
                         if (neighbor && neighbor.wall) {
@@ -240,7 +243,7 @@
                     case 'down':
                     case 'ArrowDown':
                         // 向下移动
-                        if (y < this.mazeSetUp.rows - 1) newY++;
+                        if (y < this.rows - 1) newY++;
                         break;
                     case 'a':
                     case 'left':
@@ -252,7 +255,7 @@
                     case 'right':
                     case 'ArrowRight':
                         // 向右移动
-                        if (x < this.mazeSetUp.rows - 1) newX++;
+                        if (x < this.rows - 1) newX++;
                         break;
                     default:
                         return;
@@ -280,7 +283,7 @@
                     // 新的y坐标
                     const newY = cell.y + dir.y;
                     // 检查新坐标是否在迷宫范围内
-                    if (newX >= 0 && newX < this.mazeSetUp.rows && newY >= 0 && newY < this.mazeSetUp.rows) {
+                    if (newX >= 0 && newX < this.rows && newY >= 0 && newY < this.rows) {
                         // 查找相邻
                         const neighbor = this.maze.find(c => c.x === newX && c.y === newY);
                         // 如果相邻不是墙，则加入相邻数组
@@ -305,7 +308,7 @@
             },
             // 给四个角加上圆角
             xyRadius (x, y) {
-                const rows = this.mazeSetUp.rows - 1;
+                const rows = this.rows - 1;
                 if (x == 0 && y == 0) return 'border-top-left-radius: 2px';
                 else if (x == rows && y == 0) return 'border-top-right-radius: 2px';
                 else if (x == 0 && y == rows) return 'border-bottom-left-radius: 2px';
