@@ -4,40 +4,50 @@
             <div class="maze-time" v-if="timing">
                 <a-countdown format="倒计时: mm:ss:SSS" @finish="loading = true" :start="start" :key="now" :value="countdownValue" :now="now" />
             </div>
-            <a-spin :loading="loading" hide-icon>
-                <div class="maze-container" :style="{ gridTemplateColumns: `repeat(${rows}, 10px)` }">
-                    <div v-for="(cell, index) in maze" :key="index" :class="getCellClass(cell)">
-                        <span v-if="player.x === cell.x && player.y === cell.y && !hasReachedEnd" v-html="mazeSetUp.player" />
-                        <span v-if="end.x === cell.x && end.y === cell.y && !hasReachedEnd" v-html="mazeSetUp.end" />
-                        <span v-if="hasReachedEnd && end.x === cell.x && end.y === cell.y" v-html="mazeSetUp.arrival" />
-                    </div>
-                </div>
-                <template #tip>
-                    <div class="loadingTip">
-                        <div class="text">
-                            {{ hasReachedEnd ? '恭喜你挑战成功!' :'倒计时结束!'}} 是否重新开始挑战?
-                        </div>
-                        <div class="button">
-                            <a-button @click="loading = false">取消</a-button>
-                            <a-button @click="timerEnds" type="primary">确定</a-button>
+            <div class="maze-spin">
+                <a-spin :loading="loading" hide-icon>
+                    <div class="maze-container" :style="{ gridTemplateColumns: `repeat(${rows}, 10px)` }">
+                        <div v-for="(cell, index) in maze" :key="index" :class="getCellClass(cell)">
+                            <span v-if="player.x === cell.x && player.y === cell.y && !hasReachedEnd" v-html="mazeSetUp.player" />
+                            <span v-if="end.x === cell.x && end.y === cell.y && !hasReachedEnd" v-html="mazeSetUp.end" />
+                            <span v-if="hasReachedEnd && end.x === cell.x && end.y === cell.y" v-html="mazeSetUp.arrival" />
                         </div>
                     </div>
-                </template>
-            </a-spin>
+                    <template #tip>
+                        <div class="loadingTip">
+                            <div class="text">
+                                {{ hasReachedEnd ? '恭喜你挑战成功!' :'倒计时结束!'}} 是否重新开始挑战?
+                            </div>
+                            <div class="button">
+                                <a-button @click="loading = false">取消</a-button>
+                                <a-button @click="timerEnds" type="primary">确定</a-button>
+                            </div>
+                        </div>
+                    </template>
+                </a-spin>
+            </div>
             <div class="controls">
                 <a-button @click="move('up')">上<span class="shortcutKeys">(W)</span></a-button>
                 <a-button @click="move('down')">下<span class="shortcutKeys">(S)</span></a-button>
                 <a-button @click="move('left')">左<span class="shortcutKeys">(A)</span></a-button>
                 <a-button @click="move('right')">右<span class="shortcutKeys">(D)</span></a-button>
-                <a-button @click="show = true">设置</a-button>
+                <a-button @click="move('refresh')">刷新<span class="shortcutKeys">(R)</span></a-button>
+                <a-button @click="move('show')">设置<span class="shortcutKeys">(Q)</span></a-button>
             </div>
             <a-drawer :width="width" title="迷宫设置" :visible="show" @ok="saveSettings" @cancel="show = false" unmountOnClose>
                 <a-form :model="mazeSetUp" layout="vertical">
                     <a-form-item field="dark" label="夜间模式" extra="是否开启夜间模式">
                         <a-switch v-model="mazeSetUp.dark" type="round" />
                     </a-form-item>
+                    <a-form-item field="endLocation" label="迷宫生成算法" extra="默认为Maze">
+                        <a-radio-group v-model="mazeSetUp.algorithm" type="button">
+                            <a-radio value="Maze">Maze</a-radio>
+                            <a-radio value="Generation">Generation</a-radio>
+                            <a-radio value="Algorithm">Algorithm</a-radio>
+                        </a-radio-group>
+                    </a-form-item>
                     <a-form-item field="rows" label="迷宫大小" extra="迷宫大小必须为单数, 数字越大生成的迷宫就越大">
-                        <a-input-number v-model="mazeSetUp.rows" placeholder="迷宫大小" />
+                        <a-input-number v-model="mazeSetUp.rows" :min="19" placeholder="迷宫大小" />
                     </a-form-item>
                     <a-form-item field="deadEnd" label="死胡同数量占比" extra="填写百分比">
                         <a-input-number v-model="mazeSetUp.deadEnd" :max="100" :min="10" placeholder="死胡同数量占比" />
@@ -122,6 +132,8 @@
                     arrival: '🥰',
                     // 死胡同数量
                     deadEnd: 20,
+                    // 迷宫生成算法
+                    algorithm: 'Maze',
                     // 墙壁颜色
                     wallColor: '#333333',
                     // 路径颜色
@@ -214,7 +226,7 @@
             },
             // 初始化迷宫
             generateMaze () {
-                const { time, rows, dark, start, timing, wallColor, pathColor, endLocation } = this.mazeSetUp;
+                const { time, rows, dark, start, timing, wallColor, algorithm, pathColor, endLocation } = this.mazeSetUp;
                 // 计时开始时间
                 this.now = Date.now();
                 // 计时时限
@@ -240,50 +252,119 @@
                     else body.removeAttribute('arco-theme');
                 });
                 // 初始化迷宫
-                this.maze = Array(this.rows * this.rows).fill().map((_, i) => ({
+                this.maze = Array(rows * rows).fill().map((_, i) => ({
                     // 计算x坐标
-                    x: i % this.rows,
+                    x: i % rows,
                     // 计算y坐标
-                    y: Math.floor(i / this.rows),
+                    y: Math.floor(i / rows),
                     // 默认每个坐标都是墙
                     wall: true
                 }));
-                // 定义起点的x坐标
-                const startX = 1;
-                // 定义起点的y坐标
-                const startY = 1;
-                // 挖掘迷宫路径
-                this.carveMaze(startX, startY);
+                // 迷宫算法
+                if (algorithm == 'Maze') this.carveMaze(1, 1); // Maze算法
+                else if (algorithm == 'Generation') this.Generation(); // Generation算法
+                else if (algorithm == 'Algorithm') this.Algorithm(1, 1); // Algorithm算法
                 // 确保起点和终点不是墙
-                this.maze.find(c => c.x === startX && c.y === startY).wall = false;
+                this.maze.find(c => c.x === 1 && c.y === 1).wall = false;
                 this.maze.find(c => c.x === this.end.x && c.y === this.end.y).wall = false;
                 // 创建死胡同
                 this.createDeadEnds();
             },
-            // 挖掘迷宫的路径
-            carveMaze (x, y) {
+            // Algorithm算法
+            Algorithm (x, y) {
                 const directions = this.coordinateArray(2);
                 // 随机打乱方向顺序
                 directions.sort(() => Math.random() - 0.5);
                 directions.forEach(dir => {
-                    // 计算新的x坐标
                     const nx = x + dir.x;
-                    // 计算新的y坐标
                     const ny = y + dir.y;
                     // 检查新位置是否在迷宫范围内且是墙
                     if (nx > 0 && nx < this.rows - 1 && ny > 0 && ny < this.rows - 1) {
                         const neighbor = this.maze.find(c => c.x === nx && c.y === ny);
                         // 只有当相邻是墙时才进行处理
                         if (neighbor && neighbor.wall) {
-                            // 移除相邻与当前坐标之间的墙壁
+                            // 移除当前与相邻坐标之间的墙壁
                             const wallX = x + dir.x / 2; // 计算墙的x坐标
                             const wallY = y + dir.y / 2; // 计算墙的y坐标
-                            const wallCell = this.maze.find(c => c.x === wallX && c.y === wallY);
-                            // 移除墙壁
-                            if (wallCell) wallCell.wall = false;
-                            // 移除相邻的墙壁
+                            this.maze.find(c => c.x === wallX && c.y === wallY).wall = false;
+                            // 将相邻坐标设为路径
                             neighbor.wall = false;
                             // 递归挖掘新的路径
+                            this.Algorithm(nx, ny);
+                        }
+                    }
+                });
+            },
+            // Generation算法
+            Generation () {
+                // 初始化边集合
+                const edges = [];
+                const parent = {};
+                // 生成所有边
+                for (let x = 1; x < this.rows; x += 2) {
+                    for (let y = 1; y < this.rows; y += 2) {
+                        if (x < this.rows - 2) edges.push({ from: { x, y }, to: { x: x + 2, y } });
+                        if (y < this.rows - 2) edges.push({ from: { x, y }, to: { x, y: y + 2 } });
+                    }
+                }
+                // 随机打乱边
+                edges.sort(() => Math.random() - 0.5);
+                // 初始化并查集
+                edges.forEach(edge => {
+                    const fromKey = `${edge.from.x},${edge.from.y}`;
+                    const toKey = `${edge.to.x},${edge.to.y}`;
+                    parent[fromKey] = fromKey;
+                    parent[toKey] = toKey;
+                });
+                const find = (key) => {
+                    if (parent[key] !== key) parent[key] = find(parent[key]);
+                    return parent[key];
+                };
+                const union = (key1, key2) => {
+                    const root1 = find(key1);
+                    const root2 = find(key2);
+                    if (root1 !== root2) {
+                        parent[root1] = root2;
+                        return true;
+                    }
+                    return false;
+                };
+                // 构建迷宫
+                edges.forEach(edge => {
+                    const fromKey = `${edge.from.x},${edge.from.y}`;
+                    const toKey = `${edge.to.x},${edge.to.y}`;
+                    if (union(fromKey, toKey)) {
+                        // 移除墙壁
+                        this.maze.find(c => c.x === edge.from.x && c.y === edge.from.y).wall = false;
+                        this.maze.find(c => c.x === edge.to.x && c.y === edge.to.y).wall = false;
+                        // 移除墙壁的中间墙
+                        const wallX = (edge.from.x + edge.to.x) / 2;
+                        const wallY = (edge.from.y + edge.to.y) / 2;
+                        this.maze.find(c => c.x === wallX && c.y === wallY).wall = false;
+                    }
+                });
+            },
+            // Maze算法
+            carveMaze (x, y) {
+                // 标记当前单元为路径
+                const currentCell = this.maze.find(c => c.x === x && c.y === y);
+                if (currentCell) currentCell.wall = false;
+                // 随机获取方向
+                const directions = this.coordinateArray(2);
+                directions.sort(() => Math.random() - 0.5);
+                directions.forEach(dir => {
+                    const nx = x + dir.x;
+                    const ny = y + dir.y;
+                    // 检查新的坐标是否在范围内且是墙
+                    if (nx > 0 && nx < this.rows - 1 && ny > 0 && ny < this.rows - 1) {
+                        const neighbor = this.maze.find(c => c.x === nx && c.y === ny);
+                        if (neighbor && neighbor.wall) {
+                            // 移除墙壁
+                            const wallX = x + dir.x / 2;
+                            const wallY = y + dir.y / 2;
+                            const wallCell = this.maze.find(c => c.x === wallX && c.y === wallY);
+                            if (wallCell) wallCell.wall = false;
+                            // 递归
                             this.carveMaze(nx, ny);
                         }
                     }
@@ -323,30 +404,42 @@
                 // 获取移动方向
                 direction = typeof direction === 'string' ? direction : direction.key;
                 switch (direction) {
+                    // 向上移动
                     case 'w':
                     case 'up':
                     case 'ArrowUp':
-                        // 向上移动
                         if (y > 0) newY--;
                         break;
+                    // 向下移动
                     case 's':
                     case 'down':
                     case 'ArrowDown':
-                        // 向下移动
                         if (y < this.rows - 1) newY++;
                         break;
+                    // 向左移动
                     case 'a':
                     case 'left':
                     case 'ArrowLeft':
-                        // 向左移动
                         if (x > 0) newX--;
                         break;
+                    // 向右移动
                     case 'd':
                     case 'right':
                     case 'ArrowRight':
-                        // 向右移动
                         if (x < this.rows - 1) newX++;
                         break;
+                    case 'q':
+                    case 'show':
+                        this.show = !this.show;
+                        return;
+                    // 刷新迷宫
+                    case 'r':
+                    case 'refresh':
+                        // 初始化
+                        this.generateMaze();
+                        // 发送通知
+                        Message.success('刷新成功');
+                        return;
                     default:
                         return;
                 }
@@ -425,6 +518,11 @@
         margin-bottom: 10px;
     }
 
+    .maze-spin {
+        display: flex;
+        justify-content: center;
+    }
+
     .maze-container {
         display: grid;
         gap: 5px;
@@ -468,7 +566,8 @@
     .controls>button {
         font-size: 16px;
         padding: 10px;
-        margin: 5px;
+        margin: 0 5px 10px 0;
+        width: calc(50% - 10px);
     }
 
     .shortcutKeys {
