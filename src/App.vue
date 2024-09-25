@@ -6,13 +6,7 @@
             </div>
             <div class="maze-spin">
                 <a-spin :loading="loading" hide-icon>
-                    <div class="maze-container" :style="{ gridTemplateColumns: `repeat(${rows}, 10px)` }">
-                        <div v-for="(cell, index) in maze" :key="index" :class="{ cell, wall: cell.wall, path: !cell.wall }">
-                            <span v-if="player.x === cell.x && player.y === cell.y && !hasReachedEnd" v-html="$store.mazeSetUp.player" />
-                            <span v-if="end.x === cell.x && end.y === cell.y && !hasReachedEnd" v-html="$store.mazeSetUp.end" />
-                            <span v-if="hasReachedEnd && end.x === cell.x && end.y === cell.y" v-html="$store.mazeSetUp.arrival" />
-                        </div>
-                    </div>
+                    <canvas ref="mazeCanvas"></canvas>
                     <template #tip>
                         <div class="loadingTip">
                             <div class="text">
@@ -33,7 +27,7 @@
                     <span class="shortcutKeys">({{ item.key }})</span>
                 </a-button>
             </div>
-            <a-drawer :width="width" :title="language('Settings')" :ok-text="language('Yes')" :cancel-text="language('No')" :visible="show" @ok="saveSettings" @cancel="show = false" unmountOnClose>
+            <a-drawer :width="width" :title="language('Settings')" :ok-text="language('Yes')" :cancel-text="language('No')" :visible="show" @ok="saveSettings" @cancel="show = false">
                 <a-form :model="$store.mazeSetUp" layout="vertical">
                     <template v-for="item in formData" :key="item.field">
                         <a-form-item :field="item.field" :label="item.label" :extra="item.extra">
@@ -73,12 +67,8 @@
             return {
                 // 当前时间
                 now: 0,
-                // 计时时限
-                time: 1,
                 // 设置弹窗
                 show: false,
-                // 迷宫的行数
-                rows: 41,
                 // 存储迷宫的结构数据
                 maze: [],
                 // 弹窗宽度
@@ -91,8 +81,6 @@
                 player: { x: 1, y: 1 },
                 // 加载
                 loading: false,
-                // 终点位置
-                endLocation: 'random',
                 // 是否已经到终点
                 hasReachedEnd: false,
                 // 倒计时显示的值
@@ -102,9 +90,8 @@
         computed: {
             // 迷宫的终点坐标
             end () {
-                const rows = this.rows;
+                const { rows, endLocation } = this.$store.mazeSetUp;
                 const center = Math.floor(rows / 2);
-                const endLocation = this.endLocation;
                 const endPoints = {
                     center: { x: center, y: center },
                     random: null,
@@ -182,6 +169,7 @@
             // 验证是否存在从起点到终点的路径
             checkPathExists () {
                 const end = this.end;
+                const rows = this.$store.mazeSetUp.rows;
                 const queue = [{ x: 1, y: 1 }];
                 const visited = new Set();
                 const directions = this.coordinateArray(1);
@@ -192,7 +180,7 @@
                     directions.forEach(dir => {
                         const neighbor = { x: current.x + dir.x, y: current.y + dir.y };
                         // 检查坐标是否在迷宫范围内
-                        const isInBounds = neighbor.x >= 0 && neighbor.x < this.rows && neighbor.y >= 0 && neighbor.y < this.rows;
+                        const isInBounds = neighbor.x >= 0 && neighbor.x < rows && neighbor.y >= 0 && neighbor.y < rows;
                         if (isInBounds && !this.maze.find(c => c.x === neighbor.x && c.y === neighbor.y).wall && !visited.has(`${neighbor.x}, ${neighbor.y}`)) queue.push(neighbor);
                     });
                 }
@@ -206,8 +194,6 @@
             this.renderingInitialization(window.innerWidth);
             // 监听键盘
             window.addEventListener('keydown', this.move);
-            // 监听网页宽度
-            window.addEventListener('resize', (val) => this.renderingInitialization(val.target.innerWidth));
         },
         methods: {
             // 切换语言
@@ -228,8 +214,8 @@
             },
             // 渲染初始化
             renderingInitialization (width) {
-                const rows = width > 750 ? 41 : 25;
-                this.rows = rows;
+                const oldRows = this.$store.mazeSetUp.rows;
+                const rows = width > 750 ? oldRows : 25;
                 this.width = width > 750 ? '40%' : '100%';
                 this.$store.mazeSetUp.rows = rows;
                 // 初始化迷宫
@@ -246,27 +232,22 @@
             },
             // 初始化迷宫
             generateMaze () {
-                const { time, rows, dark, start, timing, language, wallColor, algorithm, pathColor, endLocation } = this.$store.mazeSetUp;
+                const { time, rows, dark, start, timing, algorithm } = this.$store.mazeSetUp;
                 // 计时开始时间
                 this.now = Date.now();
-                // 计时时限
-                this.time = time;
-                // 修改迷宫大小
-                this.rows = rows;
                 // 是否开始倒计时
                 this.start = timing;
                 // 计时挑战开关
                 this.timing = timing;
-                // 修改重点位置
-                this.endLocation = endLocation;
+                // 重置玩家位置
+                this.player = { x: 1, y: 1 };
+                // 重置胜利状态
+                this.hasReachedEnd = false;
                 // 重置倒计时
                 this.countdownValue = this.now + 1000 * 60 * time;
                 // 修改墙壁颜色和路径颜色
                 this.$nextTick(() => {
                     const body = document.body;
-                    const style = document.documentElement.style;
-                    style.setProperty('--wallColor', wallColor);
-                    style.setProperty('--pathColor', pathColor);
                     // 是否开启夜间模式
                     if (dark) body.setAttribute('arco-theme', 'dark');
                     else body.removeAttribute('arco-theme');
@@ -290,6 +271,29 @@
                 this.createDeadEnds();
                 // 在确保起点和终点不是墙后
                 if (!this.checkPathExists) this.generateMaze();
+                this.drawMaze();
+            },
+            // 绘制Canvas迷宫地图
+            drawMaze () {
+                const canvas = this.$refs.mazeCanvas;
+                const ctx = canvas.getContext('2d');
+                const cellSize = 15; // 每个单元格的大小
+                const { end, rows, player, arrival, wallColor, pathColor } = this.$store.mazeSetUp;
+                // 设置 Canvas 尺寸
+                canvas.width = rows * cellSize;
+                canvas.height = rows * cellSize;
+                this.maze.forEach(cell => {
+                    ctx.fillStyle = cell.wall ? wallColor : pathColor;
+                    ctx.fillRect(cell.x * cellSize, cell.y * cellSize, cellSize, cellSize);
+                });
+                // 绘制终点图标
+                const endCell = this.maze.find(cell => cell.x === this.end.x && cell.y === this.end.y);
+                if (endCell && !this.hasReachedEnd) ctx.fillText(end, endCell.x * cellSize + cellSize / 4, endCell.y * cellSize + (cellSize * 3) / 4);
+                // 绘制玩家图标
+                const playerCell = this.maze.find(cell => cell.x === this.player.x && cell.y === this.player.y);
+                if (playerCell) ctx.fillText(player, playerCell.x * cellSize + cellSize / 4, playerCell.y * cellSize + (cellSize * 3) / 4);
+                // 如果玩家抵达终点，绘制到达图标
+                if (this.hasReachedEnd) ctx.fillText(arrival, playerCell.x * cellSize + cellSize / 4, playerCell.y * cellSize + (cellSize * 3) / 4);
             },
             // Algorithm算法
             Algorithm (x, y) {
@@ -299,8 +303,9 @@
                 directions.forEach(dir => {
                     const nx = x + dir.x;
                     const ny = y + dir.y;
+                    const rows = this.$store.mazeSetUp.rows;
                     // 检查新位置是否在迷宫范围内且是墙
-                    if (nx > 0 && nx < this.rows - 1 && ny > 0 && ny < this.rows - 1) {
+                    if (nx > 0 && nx < rows - 1 && ny > 0 && ny < rows - 1) {
                         const neighbor = this.maze.find(c => c.x === nx && c.y === ny);
                         // 只有当相邻是墙时才进行处理
                         if (neighbor && neighbor.wall) {
@@ -321,11 +326,12 @@
                 // 初始化边集合
                 const edges = [];
                 const parent = {};
+                const rows = this.$store.mazeSetUp.rows;
                 // 生成所有边
-                for (let x = 1; x < this.rows; x += 2) {
-                    for (let y = 1; y < this.rows; y += 2) {
-                        if (x < this.rows - 2) edges.push({ from: { x, y }, to: { x: x + 2, y } });
-                        if (y < this.rows - 2) edges.push({ from: { x, y }, to: { x, y: y + 2 } });
+                for (let x = 1; x < rows; x += 2) {
+                    for (let y = 1; y < rows; y += 2) {
+                        if (x < rows - 2) edges.push({ from: { x, y }, to: { x: x + 2, y } });
+                        if (y < rows - 2) edges.push({ from: { x, y }, to: { x, y: y + 2 } });
                     }
                 }
                 // 随机打乱边
@@ -376,8 +382,9 @@
                 directions.forEach(dir => {
                     const nx = x + dir.x;
                     const ny = y + dir.y;
+                    const rows = this.$store.mazeSetUp.rows;
                     // 检查新的坐标是否在范围内且是墙
-                    if (nx > 0 && nx < this.rows - 1 && ny > 0 && ny < this.rows - 1) {
+                    if (nx > 0 && nx < rows - 1 && ny > 0 && ny < rows - 1) {
                         const neighbor = this.maze.find(c => c.x === nx && c.y === ny);
                         if (neighbor && neighbor.wall) {
                             // 移除墙壁
@@ -411,34 +418,36 @@
             move (direction) {
                 // 获取玩家当前坐标
                 const { x, y } = this.player;
+                const isEnd = this.hasReachedEnd;
                 // 新的坐标初始化为当前坐标
                 let newX = x, newY = y;
                 // 获取移动方向
                 direction = typeof direction === 'string' ? direction : direction.key;
+                const rows = this.$store.mazeSetUp.rows;
                 switch (direction) {
                     // 向上移动
                     case 'w':
                     case 'up':
                     case 'ArrowUp':
-                        if (y > 0) newY--;
+                        if (y > 0 && !isEnd) newY--;
                         break;
                     // 向下移动
                     case 's':
                     case 'down':
                     case 'ArrowDown':
-                        if (y < this.rows - 1) newY++;
+                        if (y < rows - 1 && !isEnd) newY++;
                         break;
                     // 向左移动
                     case 'a':
                     case 'left':
                     case 'ArrowLeft':
-                        if (x > 0) newX--;
+                        if (x > 0 && !isEnd) newX--;
                         break;
                     // 向右移动
                     case 'd':
                     case 'right':
                     case 'ArrowRight':
-                        if (x < this.rows - 1) newX++;
+                        if (x < rows - 1 && !isEnd) newX++;
                         break;
                     // 打开设置
                     case 'q':
@@ -466,6 +475,7 @@
                     this.player.y = newY;
                     // 检查是否到达终点
                     this.hasReachedEnd = this.player.x === this.end.x && this.player.y === this.end.y;
+                    this.drawMaze()
                     // 如果到达终点并且计时没有结束
                     if (this.hasReachedEnd && !this.loading) {
                         // 停止计时
@@ -485,8 +495,9 @@
                     const newX = cell.x + dir.x;
                     // 新的y坐标
                     const newY = cell.y + dir.y;
+                    const rows = this.$store.mazeSetUp.rows;
                     // 检查新坐标是否在迷宫范围内
-                    if (newX >= 0 && newX < this.rows && newY >= 0 && newY < this.rows) {
+                    if (newX >= 0 && newX < rows && newY >= 0 && newY < rows) {
                         // 查找相邻
                         const neighbor = this.maze.find(c => c.x === newX && c.y === newY);
                         // 如果相邻不是墙，则加入相邻数组
@@ -536,12 +547,6 @@
         justify-content: center;
     }
 
-    .maze-container {
-        display: grid;
-        gap: 5px;
-        justify-content: center;
-    }
-
     .loadingTip .text {
         color: var(--color-white);
         margin-bottom: 10px;
@@ -549,24 +554,6 @@
 
     .loadingTip .button button {
         margin-right: 10px;
-    }
-
-    .cell {
-        width: 10px;
-        height: 10px;
-        border: 1px solid #ccc;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 2px;
-    }
-
-    .wall {
-        background-color: var(--wallColor);
-    }
-
-    .path {
-        background-color: var(--pathColor);
     }
 
     .controls {
