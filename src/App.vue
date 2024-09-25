@@ -282,10 +282,27 @@
                 // 设置 Canvas 尺寸
                 canvas.width = rows * cellSize;
                 canvas.height = rows * cellSize;
-                this.maze.forEach(cell => {
-                    ctx.fillStyle = cell.wall ? wallColor : pathColor;
-                    ctx.fillRect(cell.x * cellSize, cell.y * cellSize, cellSize, cellSize);
+
+                // 道路
+                ctx.fillStyle = pathColor;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                const tempMaze = this.maze.filter(cell => !(cell.x === 1 && cell.y === rows));
+
+                tempMaze.forEach(cell => {
+                    if (cell.wall) {
+                        ctx.fillStyle = wallColor;
+                        ctx.fillRect(cell.x * cellSize, cell.y * cellSize, cellSize, cellSize);
+                    }
                 });
+
+                // 单独处理 x 为 1 且 y 为 row 的元素
+                const specialCell = this.maze.find(cell => cell.x === 1 && cell.y === rows);
+                if (specialCell) {
+                    ctx.fillStyle = specialColor;
+                    ctx.fillRect(specialCell.x * cellSize, specialCell.y * cellSize, cellSize, cellSize);
+                }
+
+
                 // 绘制终点图标
                 const endCell = this.maze.find(cell => cell.x === this.end.x && cell.y === this.end.y);
                 if (endCell && !this.hasReachedEnd) ctx.fillText(end, endCell.x * cellSize + cellSize / 4, endCell.y * cellSize + (cellSize * 3) / 4);
@@ -294,6 +311,7 @@
                 if (playerCell) ctx.fillText(player, playerCell.x * cellSize + cellSize / 4, playerCell.y * cellSize + (cellSize * 3) / 4);
                 // 如果玩家抵达终点，绘制到达图标
                 if (this.hasReachedEnd) ctx.fillText(arrival, playerCell.x * cellSize + cellSize / 4, playerCell.y * cellSize + (cellSize * 3) / 4);
+
             },
             // Algorithm算法
             Algorithm (x, y) {
