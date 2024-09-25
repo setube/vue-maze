@@ -282,18 +282,35 @@
                 // 设置 Canvas 尺寸
                 canvas.width = rows * cellSize;
                 canvas.height = rows * cellSize;
+
+                // 道路
+                ctx.fillStyle = pathColor;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
                 this.maze.forEach(cell => {
-                    ctx.fillStyle = cell.wall ? wallColor : pathColor;
-                    ctx.fillRect(cell.x * cellSize, cell.y * cellSize, cellSize, cellSize);
+                    if (!(cell.x === 1 && cell.y === rows) && cell.wall) {
+                        ctx.fillStyle = wallColor;
+                        ctx.fillRect(cell.x * cellSize, cell.y * cellSize, cellSize, cellSize);
+                    }
                 });
+
+                // 单独处理 x 为 1 且 y 为 row 的元素
+                const specialCell = this.maze[rows - 1][0];
+                if (specialCell) {
+                    ctx.fillStyle = specialColor;
+                    ctx.fillRect(specialCell.x * cellSize, specialCell.y * cellSize, cellSize, cellSize);
+                }
+
+                const TEXT_OFFSET_X = cellSize / 4;
+                const TEXT_OFFSET_Y = (cellSize * 3) / 4;
                 // 绘制终点图标
                 const endCell = this.maze.find(cell => cell.x === this.end.x && cell.y === this.end.y);
-                if (endCell && !this.hasReachedEnd) ctx.fillText(end, endCell.x * cellSize + cellSize / 4, endCell.y * cellSize + (cellSize * 3) / 4);
+                if (endCell && !this.hasReachedEnd) ctx.fillText(end, endCell.x * cellSize + TEXT_OFFSET_X, endCell.y * cellSize + TEXT_OFFSET_Y);
                 // 绘制玩家图标
                 const playerCell = this.maze.find(cell => cell.x === this.player.x && cell.y === this.player.y);
-                if (playerCell) ctx.fillText(player, playerCell.x * cellSize + cellSize / 4, playerCell.y * cellSize + (cellSize * 3) / 4);
+                if (playerCell) ctx.fillText(player, playerCell.x * cellSize + TEXT_OFFSET_X, playerCell.y * cellSize + TEXT_OFFSET_Y);
                 // 如果玩家抵达终点，绘制到达图标
-                if (this.hasReachedEnd) ctx.fillText(arrival, playerCell.x * cellSize + cellSize / 4, playerCell.y * cellSize + (cellSize * 3) / 4);
+                if (this.hasReachedEnd) ctx.fillText(arrival, playerCell.x * cellSize + TEXT_OFFSET_X, playerCell.y * cellSize + TEXT_OFFSET_Y);
             },
             // Algorithm算法
             Algorithm (x, y) {
