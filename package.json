@@ -1,7 +1,7 @@
 {
     "name": "vue-maze",
     "private": true,
-    "version": "0.0.4",
+    "version": "0.0.5",
     "type": "module",
     "scripts": {
         "dev": "vite --open --host --port 6000",
@@ -11,6 +11,8 @@
     "dependencies": {
         "arco-design": "^1.0.0",
         "autoprefixer": "^10.4.20",
+        "pinia": "^2.2.2",
+        "pinia-plugin-persistedstate": "^4.0.2",
         "postcss": "^8.4.47",
         "terser": "^5.33.0",
         "vue": "^3.4.37"

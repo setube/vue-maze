@@ -7,6 +7,7 @@
 
 - 项目框架 [Vue.js](https://cn.vuejs.org)
 - 项目UI [Arco Design](https://arco.design/vue)
+- 状态管理库 [Pinia](https://pinia.vuejs.org/zh)
 
 # 安装依赖
 

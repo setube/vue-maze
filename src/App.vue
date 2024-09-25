@@ -2,86 +2,62 @@
     <div class="maze">
         <div class="maze-box">
             <div class="maze-time" v-if="timing">
-                <a-countdown format="倒计时: mm:ss:SSS" @finish="loading = true" :start="start" :key="now" :value="countdownValue" :now="now" />
+                <a-countdown :format="language('Countdown: mm:ss:SSS')" @finish="loading = true" :start="start" :key="now" :value="countdownValue" :now="now" />
             </div>
             <div class="maze-spin">
                 <a-spin :loading="loading" hide-icon>
                     <div class="maze-container" :style="{ gridTemplateColumns: `repeat(${rows}, 10px)` }">
-                        <div v-for="(cell, index) in maze" :key="index" :class="getCellClass(cell)">
-                            <span v-if="player.x === cell.x && player.y === cell.y && !hasReachedEnd" v-html="mazeSetUp.player" />
-                            <span v-if="end.x === cell.x && end.y === cell.y && !hasReachedEnd" v-html="mazeSetUp.end" />
-                            <span v-if="hasReachedEnd && end.x === cell.x && end.y === cell.y" v-html="mazeSetUp.arrival" />
+                        <div v-for="(cell, index) in maze" :key="index" :class="{ cell, wall: cell.wall, path: !cell.wall }">
+                            <span v-if="player.x === cell.x && player.y === cell.y && !hasReachedEnd" v-html="$store.mazeSetUp.player" />
+                            <span v-if="end.x === cell.x && end.y === cell.y && !hasReachedEnd" v-html="$store.mazeSetUp.end" />
+                            <span v-if="hasReachedEnd && end.x === cell.x && end.y === cell.y" v-html="$store.mazeSetUp.arrival" />
                         </div>
                     </div>
                     <template #tip>
                         <div class="loadingTip">
                             <div class="text">
-                                {{ hasReachedEnd ? '恭喜你挑战成功!' :'倒计时结束!'}} 是否重新开始挑战?
+                                {{ hasReachedEnd ? language('Congratulations! You have successfully completed the challenge!') : language('The countdown has ended!') }}
+                                {{ language('Do you want to restart the challenge?') }}
                             </div>
                             <div class="button">
-                                <a-button @click="loading = false">取消</a-button>
-                                <a-button @click="timerEnds" type="primary">确定</a-button>
+                                <a-button @click="loading = false">{{ language('No') }}</a-button>
+                                <a-button @click="timerEnds" type="primary">{{ language('Yes') }}</a-button>
                             </div>
                         </div>
                     </template>
                 </a-spin>
             </div>
             <div class="controls">
-                <a-button @click="move('up')">上<span class="shortcutKeys">(W)</span></a-button>
-                <a-button @click="move('down')">下<span class="shortcutKeys">(S)</span></a-button>
-                <a-button @click="move('left')">左<span class="shortcutKeys">(A)</span></a-button>
-                <a-button @click="move('right')">右<span class="shortcutKeys">(D)</span></a-button>
-                <a-button @click="move('refresh')">刷新<span class="shortcutKeys">(R)</span></a-button>
-                <a-button @click="move('show')">设置<span class="shortcutKeys">(Q)</span></a-button>
+                <a-button class="controls-button" v-for="(item, index) in controls" :key="index" @click="move(item.type)">
+                    <span>{{ item.name }}</span>
+                    <span class="shortcutKeys">({{ item.key }})</span>
+                </a-button>
             </div>
-            <a-drawer :width="width" title="迷宫设置" :visible="show" @ok="saveSettings" @cancel="show = false" unmountOnClose>
-                <a-form :model="mazeSetUp" layout="vertical">
-                    <a-form-item field="dark" label="夜间模式" extra="是否开启夜间模式">
-                        <a-switch v-model="mazeSetUp.dark" type="round" />
-                    </a-form-item>
-                    <a-form-item field="endLocation" label="迷宫生成算法" extra="默认为Maze">
-                        <a-radio-group v-model="mazeSetUp.algorithm" type="button">
-                            <a-radio value="Maze">Maze</a-radio>
-                            <a-radio value="Generation">Generation</a-radio>
-                            <a-radio value="Algorithm">Algorithm</a-radio>
-                        </a-radio-group>
-                    </a-form-item>
-                    <a-form-item field="rows" label="迷宫大小" extra="迷宫大小必须为单数, 数字越大生成的迷宫就越大">
-                        <a-input-number v-model="mazeSetUp.rows" :min="19" placeholder="迷宫大小" />
-                    </a-form-item>
-                    <a-form-item field="deadEnd" label="死胡同数量占比" extra="填写百分比">
-                        <a-input-number v-model="mazeSetUp.deadEnd" :max="100" :min="10" placeholder="死胡同数量占比" />
-                    </a-form-item>
-                    <a-form-item field="endLocation" label="终点位置" extra="终点位置默认为中间">
-                        <a-radio-group v-model="mazeSetUp.endLocation" type="button">
-                            <a-radio value="rightTop">右上角</a-radio>
-                            <a-radio value="leftDown">左下角</a-radio>
-                            <a-radio value="center">中间</a-radio>
-                            <a-radio value="rightDown">右下角</a-radio>
-                            <a-radio value="random">随机</a-radio>
-                        </a-radio-group>
-                    </a-form-item>
-                    <a-form-item field="player" label="计时挑战" extra="是否开启计时挑战">
-                        <a-switch v-model="mazeSetUp.timing" type="round" />
-                    </a-form-item>
-                    <a-form-item field="player" label="计时时限" extra="最少1分钟">
-                        <a-input-number v-model="mazeSetUp.time" :min="1" placeholder="最少1分钟" />
-                    </a-form-item>
-                    <a-form-item field="player" label="玩家图标" extra="支持填写HTML标签">
-                        <a-textarea v-model="mazeSetUp.player" placeholder="玩家图标" />
-                    </a-form-item>
-                    <a-form-item field="end" label="终点图标" extra="支持填写HTML标签">
-                        <a-textarea v-model="mazeSetUp.end" placeholder="终点图标" />
-                    </a-form-item>
-                    <a-form-item field="arrival" label="抵达终点图标" extra="支持填写HTML标签">
-                        <a-textarea v-model="mazeSetUp.arrival" placeholder="抵达终点图标" />
-                    </a-form-item>
-                    <a-form-item field="wallColor" label="墙壁颜色" extra="支持选择16进制和RGB颜色代码">
-                        <a-color-picker v-model="mazeSetUp.wallColor" show-preset show-history showText />
-                    </a-form-item>
-                    <a-form-item field="pathColor" label="路径颜色" extra="支持选择16进制和RGB颜色代码">
-                        <a-color-picker v-model="mazeSetUp.pathColor" show-preset show-history showText />
-                    </a-form-item>
+            <a-drawer :width="width" :title="language('Settings')" :ok-text="language('Yes')" :cancel-text="language('No')" :visible="show" @ok="saveSettings" @cancel="show = false" unmountOnClose>
+                <a-form :model="$store.mazeSetUp" layout="vertical">
+                    <template v-for="item in formData" :key="item.field">
+                        <a-form-item :field="item.field" :label="item.label" :extra="item.extra">
+                            <template v-if="item.component === 'a-switch'">
+                                <a-switch v-model="$store.mazeSetUp[item.field]" type="round" />
+                            </template>
+                            <template v-else-if="item.component === 'a-radio-group'">
+                                <a-radio-group v-model="$store.mazeSetUp[item.field]" type="button">
+                                    <a-radio v-for="option in item.options" :key="option.value" :value="option.value">{{ option.label }}</a-radio>
+                                </a-radio-group>
+                            </template>
+                            <template v-else-if="item.component === 'a-input-number'">
+                                <a-input-number v-model="$store.mazeSetUp[item.field]" mode="button" :min="item.props.min" :max="item.props.max">
+                                    <template #suffix v-if="item.field == 'deadEnd'">%</template>
+                                </a-input-number>
+                            </template>
+                            <template v-else-if="item.component === 'a-textarea'">
+                                <a-textarea v-model="$store.mazeSetUp[item.field]" />
+                            </template>
+                            <template v-else-if="item.component === 'a-color-picker'">
+                                <a-color-picker v-model="$store.mazeSetUp[item.field]" show-preset show-text />
+                            </template>
+                        </a-form-item>
+                    </template>
                 </a-form>
             </a-drawer>
         </div>
@@ -89,6 +65,7 @@
 </template>
 
 <script>
+    import zh from '@/assets/zh-CN.json';
     import { Message } from '@arco-design/web-vue';
 
     export default {
@@ -114,35 +91,8 @@
                 player: { x: 1, y: 1 },
                 // 加载
                 loading: false,
-                // 地图设置
-                mazeSetUp: {
-                    // 终点图标
-                    end: '🚩',
-                    // 夜间模式开关
-                    dark: false,
-                    // 计时时限
-                    time: 1,
-                    // 迷宫的行数
-                    rows: 41,
-                    // 计时挑战开关
-                    timing: false,
-                    // 玩家图标
-                    player: '😃',
-                    // 抵达终点图标
-                    arrival: '🥰',
-                    // 死胡同数量
-                    deadEnd: 20,
-                    // 迷宫生成算法
-                    algorithm: 'Maze',
-                    // 墙壁颜色
-                    wallColor: '#333333',
-                    // 路径颜色
-                    pathColor: '#EEEEEE',
-                    // 终点位置
-                    endLocation: 'center'
-                },
                 // 终点位置
-                endLocation: 'center',
+                endLocation: 'random',
                 // 是否已经到终点
                 hasReachedEnd: false,
                 // 倒计时显示的值
@@ -181,6 +131,72 @@
                         return targetEnd;
                     }
                 }
+            },
+            // 按钮
+            controls () {
+                return [
+                    { key: 'Q', type: 'show', name: this.language('Settings') },
+                    { key: 'W', type: 'up', name: this.language('Up') },
+                    { key: 'R', type: 'refresh', name: this.language('Refresh') },
+                    { key: 'A', type: 'left', name: this.language('Left') },
+                    { key: 'S', type: 'down', name: this.language('Down') },
+                    { key: 'D', type: 'right', name: this.language('Right') }
+                ];
+            },
+            // 表单数据
+            formData () {
+                const options = {
+                    algorithms: [
+                        { value: 'Maze', label: 'Maze' },
+                        { value: 'Generation', label: 'Generation' },
+                        { value: 'Algorithm', label: 'Algorithm' }
+                    ],
+                    language: [
+                        { value: 'zh-CN', label: '简体中文' },
+                        { value: 'en-US', label: 'English' }
+                    ],
+                    endLocations: [
+                        { value: 'rightTop', label: this.language('Right Top') },
+                        { value: 'leftDown', label: this.language('Left Down') },
+                        { value: 'center', label: this.language('Center') },
+                        { value: 'rightDown', label: this.language('Right Down') },
+                        { value: 'random', label: this.language('Random') }
+                    ]
+                };
+                return [
+                    { field: 'dark', label: this.language('Night Mode'), extra: '', component: 'a-switch' },
+                    { field: 'language', label: this.language('Language'), extra: '', options: options.language, component: 'a-radio-group' },
+                    { field: 'algorithm', label: this.language('Maze Generation Algorithm'), extra: '', options: options.algorithms, component: 'a-radio-group' },
+                    { field: 'rows', label: this.language('Maze Size'), extra: this.language('The maze size must be an odd number, and the larger the number, the larger the maze that will be generated.'), props: { min: 19 }, component: 'a-input-number' },
+                    { field: 'deadEnd', label: this.language('Percentage of Dead Ends'), extra: '', props: { max: 100, min: 10 }, component: 'a-input-number' },
+                    { field: 'endLocation', label: this.language('Location of the Endpoint'), extra: '', options: options.endLocations, component: 'a-radio-group' },
+                    { field: 'timing', label: this.language('Countdown Challenge'), extra: '', component: 'a-switch' },
+                    { field: 'time', label: this.language('Countdown Timer Limit'), extra: '', props: { min: 1, placeholder: '' }, component: 'a-input-number' },
+                    { field: 'player', label: this.language('Player Icon'), extra: this.language('Supports Filling in HTML Tags'), component: 'a-textarea' },
+                    { field: 'end', label: this.language('Endpoint Icon'), extra: this.language('Supports Filling in HTML Tags'), component: 'a-textarea' },
+                    { field: 'arrival', label: this.language('Icon for Reaching the Endpoint'), extra: this.language('Supports Filling in HTML Tags'), component: 'a-textarea' },
+                    { field: 'wallColor', label: this.language('Wall Color'), extra: '', props: { showPreset: true, showText: true }, component: 'a-color-picker' },
+                    { field: 'pathColor', label: this.language('Path Color'), extra: '', props: { showPreset: true, showText: true }, component: 'a-color-picker' }
+                ];
+            },
+            // 验证是否存在从起点到终点的路径
+            checkPathExists () {
+                const end = this.end;
+                const queue = [{ x: 1, y: 1 }];
+                const visited = new Set();
+                const directions = this.coordinateArray(1);
+                while (queue.length > 0) {
+                    const current = queue.shift();
+                    if (current.x === end.x && current.y === end.y) return true;
+                    visited.add(`${current.x}, ${current.y}`);
+                    directions.forEach(dir => {
+                        const neighbor = { x: current.x + dir.x, y: current.y + dir.y };
+                        // 检查坐标是否在迷宫范围内
+                        const isInBounds = neighbor.x >= 0 && neighbor.x < this.rows && neighbor.y >= 0 && neighbor.y < this.rows;
+                        if (isInBounds && !this.maze.find(c => c.x === neighbor.x && c.y === neighbor.y).wall && !visited.has(`${neighbor.x}, ${neighbor.y}`)) queue.push(neighbor);
+                    });
+                }
+                return false;
             }
         },
         mounted () {
@@ -194,6 +210,10 @@
             window.addEventListener('resize', (val) => this.renderingInitialization(val.target.innerWidth));
         },
         methods: {
+            // 切换语言
+            language (text) {
+                return this.$store.mazeSetUp.language == 'zh-CN' ? zh[text] : text;
+            },
             // 打开计时结束弹窗
             timerEnds () {
                 // 重置倒计时
@@ -211,7 +231,7 @@
                 const rows = width > 750 ? 41 : 25;
                 this.rows = rows;
                 this.width = width > 750 ? '40%' : '100%';
-                this.mazeSetUp.rows = rows;
+                this.$store.mazeSetUp.rows = rows;
                 // 初始化迷宫
                 this.generateMaze();
             },
@@ -222,11 +242,11 @@
                 // 关闭弹窗
                 this.show = false;
                 // 发送通知
-                Message.success('地图数据设置成功');
+                Message.success(this.language('Settings Saved'));
             },
             // 初始化迷宫
             generateMaze () {
-                const { time, rows, dark, start, timing, wallColor, algorithm, pathColor, endLocation } = this.mazeSetUp;
+                const { time, rows, dark, start, timing, language, wallColor, algorithm, pathColor, endLocation } = this.$store.mazeSetUp;
                 // 计时开始时间
                 this.now = Date.now();
                 // 计时时限
@@ -240,7 +260,7 @@
                 // 修改重点位置
                 this.endLocation = endLocation;
                 // 重置倒计时
-                this.countdownValue = this.now + 1000 * 60 * this.time;
+                this.countdownValue = this.now + 1000 * 60 * time;
                 // 修改墙壁颜色和路径颜色
                 this.$nextTick(() => {
                     const body = document.body;
@@ -253,7 +273,6 @@
                 });
                 // 初始化迷宫
                 this.maze = Array(rows * rows).fill().map((_, i) => ({
-                    // 计算x坐标
                     x: i % rows,
                     // 计算y坐标
                     y: Math.floor(i / rows),
@@ -269,6 +288,8 @@
                 this.maze.find(c => c.x === this.end.x && c.y === this.end.y).wall = false;
                 // 创建死胡同
                 this.createDeadEnds();
+                // 在确保起点和终点不是墙后
+                if (!this.checkPathExists) this.generateMaze();
             },
             // Algorithm算法
             Algorithm (x, y) {
@@ -375,25 +396,16 @@
                 // 获取所有路径坐标
                 const paths = this.maze.filter(cell => !cell.wall);
                 // 死胡同数量占比
-                const deadEndCount = Math.floor(paths.length * (this.mazeSetUp.deadEnd / 100));
+                const deadEndCount = Math.floor(paths.length * (this.$store.mazeSetUp.deadEnd / 100));
                 for (let i = 0; i < deadEndCount; i++) {
                     // 随机选择一条路径
                     const randomPath = paths[Math.floor(Math.random() * paths.length)];
                     const neighbors = this.getNeighbors(randomPath).filter(neighbor => !neighbor.wall);
-                    // 如果该路径的相邻只有一个，则将该路径变为墙
-                    if (neighbors.length === 1) this.maze.find(c => c.x === randomPath.x && c.y === randomPath.y).wall = true;
+                    // 如果该路径的相邻只有一个且不是起点或终点，则将该路径变为墙
+                    if (neighbors.length === 1 && !(randomPath.x === 1 && randomPath.y === 1) && !(randomPath.x === this.end.x && randomPath.y === this.end.y)) {
+                        this.maze.find(c => c.x === randomPath.x && c.y === randomPath.y).wall = true;
+                    }
                 }
-            },
-            // 获取坐标样式的函数
-            getCellClass (cell) {
-                return {
-                    // 每个坐标都包含cell类
-                    cell: true,
-                    // 如果是墙，则包含wall类
-                    wall: cell.wall,
-                    // 如果不是墙，则包含path类
-                    path: !cell.wall
-                };
             },
             // 玩家移动的函数
             move (direction) {
@@ -428,6 +440,7 @@
                     case 'ArrowRight':
                         if (x < this.rows - 1) newX++;
                         break;
+                    // 打开设置
                     case 'q':
                     case 'show':
                         this.show = !this.show;
@@ -438,7 +451,7 @@
                         // 初始化
                         this.generateMaze();
                         // 发送通知
-                        Message.success('刷新成功');
+                        Message.success(this.language('Refresh Successful'));
                         return;
                     default:
                         return;
@@ -563,11 +576,15 @@
         margin-top: 20px;
     }
 
-    .controls>button {
+    .controls-button {
         font-size: 16px;
-        padding: 10px;
         margin: 0 5px 10px 0;
-        width: calc(50% - 10px);
+        width: calc(33.333% - 4px);
+    }
+
+    .controls-button:nth-child(3),
+    .controls-button:nth-child(6) {
+        margin-right: 0;
     }
 
     .shortcutKeys {
